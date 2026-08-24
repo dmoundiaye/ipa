@@ -1,0 +1,28 @@
+class Equipement:
+    """Classe de base représentant un équipement réseau générique."""
+    def __init__(self, nom: str, adresse_ip: str):
+        self.nom = nom
+        self.adresse_ip = adresse_ip
+        self.interfaces: list[str] = []
+
+    def ajouter_interface(self, nom_interface: str) -> None:
+        self.interfaces.append(nom_interface)
+
+    def __repr__(self) -> str:
+        return f"<Equipement {self.nom} ({self.adresse_ip})>"
+
+class Routeur(Equipement):
+    """Hérite d'Equipement, ajoute la table de routage."""
+    def __init__(self, nom: str, adresse_ip: str, nb_ports: int):
+        super().__init__(nom, adresse_ip)
+        self.nb_ports = nb_ports
+        self.table_routage: dict[str, str] = {}
+    def ajouter_route(self, destination: str, next_hop: str) -> None:
+        self.table_routage[destination] = next_hop 
+
+# Utilisation :
+r1 = Routeur(nom="R1", adresse_ip="10.0.0.1", nb_ports=4)
+r1.ajouter_interface("GigabitEthernet0/0")
+r1.ajouter_route(destination="192.168.2.0/24", next_hop="10.0.0.2")
+print(r1)   
+# <Equipement R1 (10.0.0.1)
