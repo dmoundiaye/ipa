@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from core.config import settings
+from core.security import get_current_user, require_role
 from databases import get_db
-from models import Equipement
+from models import Equipement, Utilisateur
 from schemas import (
     EquipementCreate,
     EquipementUpdate,
@@ -16,23 +18,27 @@ router = APIRouter(
 )
 
 
-# --------------------------------------------------
+# ============================================================
 # CREATE
-# --------------------------------------------------
+# ============================================================
 
-@router.post("",
+@router.post(
+    "",
     response_model=EquipementResponse,
     status_code=status.HTTP_201_CREATED
 )
 def create_equipement(
     equipement: EquipementCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Utilisateur = Depends(require_role("admin", "operator")),
 ):
 
-    # Check duplicate IP
+    # Vérifier si l'adresse IP existe déjà
     existing = (
         db.query(Equipement)
-        .filter(Equipement.adresse_ip == equipement.adresse_ip)
+        .filter(
+            Equipement.adresse_ip == equipement.adresse_ip
+        )
         .first()
     )
 
@@ -55,9 +61,9 @@ def create_equipement(
     return new_equipement
 
 
-# --------------------------------------------------
+# ============================================================
 # READ ALL
-# --------------------------------------------------
+# ============================================================
 
 @router.get(
     "",
@@ -70,9 +76,9 @@ def get_equipements(
     return db.query(Equipement).all()
 
 
-# --------------------------------------------------
+# ============================================================
 # READ ONE
-# --------------------------------------------------
+# ============================================================
 
 @router.get(
     "/{equipement_id}",
@@ -85,11 +91,13 @@ def get_equipement(
 
     equipement = (
         db.query(Equipement)
-        .filter(Equipement.id == equipement_id)
+        .filter(
+            Equipement.id == equipement_id
+        )
         .first()
     )
 
-    if not equipement:
+    if equipement is None:
         raise HTTPException(
             status_code=404,
             detail="Équipement introuvable"
@@ -98,9 +106,9 @@ def get_equipement(
     return equipement
 
 
-# --------------------------------------------------
+# ============================================================
 # UPDATE
-# --------------------------------------------------
+# ============================================================
 
 @router.put(
     "/{equipement_id}",
@@ -109,23 +117,27 @@ def get_equipement(
 def update_equipement(
     equipement_id: int,
     data: EquipementUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Utilisateur = Depends(require_role("admin", "operator")),
 ):
 
     equipement = (
         db.query(Equipement)
-        .filter(Equipement.id == equipement_id)
+        .filter(
+            Equipement.id == equipement_id
+        )
         .first()
     )
 
-    if not equipement:
+    if equipement is None:
         raise HTTPException(
             status_code=404,
             detail="Équipement introuvable"
         )
 
-    # Check duplicate IP
-    if data.adresse_ip:
+    # Vérifier l'unicité de l'adresse IP
+    if data.adresse_ip is not None:
+
         existing = (
             db.query(Equipement)
             .filter(
@@ -141,8 +153,10 @@ def update_equipement(
                 detail="Cette adresse IP est déjà utilisée"
             )
 
-    # Only update fields provided by the client
-    update_data = data.model_dump(exclude_unset=True)
+    # Récupérer uniquement les champs fournis
+    update_data = data.model_dump(
+        exclude_unset=True
+    )
 
     for field, value in update_data.items():
         setattr(equipement, field, value)
@@ -153,9 +167,9 @@ def update_equipement(
     return equipement
 
 
-# --------------------------------------------------
+# ============================================================
 # DELETE
-# --------------------------------------------------
+# ============================================================
 
 @router.delete(
     "/{equipement_id}",
@@ -163,16 +177,19 @@ def update_equipement(
 )
 def delete_equipement(
     equipement_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Utilisateur = Depends(require_role("admin")),
 ):
 
     equipement = (
         db.query(Equipement)
-        .filter(Equipement.id == equipement_id)
+        .filter(
+            Equipement.id == equipement_id
+        )
         .first()
     )
 
-    if not equipement:
+    if equipement is None:
         raise HTTPException(
             status_code=404,
             detail="Équipement introuvable"
