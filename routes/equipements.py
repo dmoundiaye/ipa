@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+import logging
 
 from core.config import settings
 from core.security import get_current_user, require_role
@@ -10,7 +11,9 @@ from schemas import (
     EquipementUpdate,
     EquipementResponse,
 )
+from services.association_service import association_service
 
+logger = logging.getLogger("inventory-app")
 
 router = APIRouter(
     prefix="/equipements",
@@ -70,7 +73,8 @@ def create_equipement(
     response_model=list[EquipementResponse]
 )
 def get_equipements(
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Utilisateur = Depends(get_current_user),
 ):
 
     return db.query(Equipement).all()
@@ -86,7 +90,8 @@ def get_equipements(
 )
 def get_equipement(
     equipement_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Utilisateur = Depends(get_current_user),
 ):
 
     equipement = (
@@ -194,6 +199,22 @@ def delete_equipement(
             status_code=404,
             detail="Équipement introuvable"
         )
+
+    # Supprimer le nœud GNS3 associé
+    if equipement.synced_with_gns3 and equipement.gns3_node_id:
+        # Pour trouver la topologie de l'équipement (nécessaire pour supprimer le nœud GNS3)
+        topologie_id = equipement.topologie_id
+        if topologie_id:
+            try:
+                association_service.delete_gns3_node(equipement_id, topologie_id)
+                logger.info(
+                    f"Nœud GNS3 supprimé pour l'équipement '{equipement.nom}'"
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Échec de la suppression du nœud GNS3 pour "
+                    f"l'équipement '{equipement.nom}': {e}"
+                )
 
     db.delete(equipement)
     db.commit()

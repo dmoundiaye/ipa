@@ -9,7 +9,10 @@ from schemas import (
     TopologieUpdate,
     TopologieResponse,
 )
+from services.association_service import association_service
+import logging
 
+logger = logging.getLogger("inventory-app")
 
 router = APIRouter(
     prefix="/topologies",
@@ -41,6 +44,27 @@ def creer_topologie(
     db.commit()
     db.refresh(nouvelle_topologie)
 
+    # Intégration GNS3 : créer automatiquement un projet GNS3
+    try:
+        gns3_project_id = association_service.get_or_create_gns3_project(
+            nouvelle_topologie
+        )
+        nouvelle_topologie.gns3_project_id = gns3_project_id
+        nouvelle_topologie.synced_with_gns3 = True
+        db.commit()
+        db.refresh(nouvelle_topologie)
+        logger.info(
+            f"Topologie '{nouvelle_topologie.nom}' créée et synchronisée "
+            f"avec GNS3 (project_id={gns3_project_id})"
+        )
+    except Exception as e:
+        logger.warning(
+            f"Topologie '{nouvelle_topologie.nom}' créée localement mais "
+            f"échec de la synchronisation GNS3: {e}"
+        )
+        # La topologie est créée dans la DB même si GNS3 échoue
+        # On pourrait implémenter une stratégie de retry ou de compensation
+
     return nouvelle_topologie
 
 
@@ -69,7 +93,8 @@ def lister_topologies(
 )
 def obtenir_topologie(
     topologie_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Utilisateur = Depends(get_current_user),
 ):
     topologie = (
         db.query(Topologie)
@@ -97,7 +122,8 @@ def obtenir_topologie(
 def modifier_topologie(
     topologie_id: int,
     donnees: TopologieUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Utilisateur = Depends(require_role("admin", "operator")),
 ):
     topologie = (
         db.query(Topologie)
@@ -147,6 +173,39 @@ def supprimer_topologie(
             status_code=404,
             detail="Topologie introuvable"
         )
+
+    # Suppression cascade : les équipements sont supprimés automatiquement
+    # grace au cascade="all, delete-orphan" dans la relation Topologie.equipements
+    # Les connexions aussi grace au cascade="all, delete-orphan" dans Topologie.connexions
+
+    # Supprimer les nœuds GNS3 associés aux équipements de cette topologie
+    for equipement in topologie.equipements:
+        if equipement.synced_with_gns3 and equipement.gns3_node_id:
+            try:
+                association_service.delete_gns3_node(
+                    equipement.id, topologie_id
+                )
+                logger.info(
+                    f"Nœud GNS3 supprimé pour l'équipement '{equipement.nom}'"
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Échec de la suppression du nœud GNS3 pour "
+                    f"l'équipement '{equipement.nom}': {e}"
+                )
+
+    # Supprimer le projet GNS3
+    if topologie.synced_with_gns3 and topologie.gns3_project_id:
+        try:
+            association_service.delete_gns3_project(topologie_id)
+            logger.info(
+                f"Projet GNS3 supprimé pour la topologie '{topologie.nom}'"
+            )
+        except Exception as e:
+            logger.warning(
+                f"Échec de la suppression du projet GNS3 pour "
+                f"la topologie '{topologie.nom}': {e}"
+            )
 
     db.delete(topologie)
     db.commit()

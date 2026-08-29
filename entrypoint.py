@@ -1,27 +1,47 @@
+"""
+Point d'entrée de l'application FastAPI.
+
+Configure l'application avec:
+- Logging structuré
+- Rate limiting via SlowAPI
+- Middleware de temps de traitement
+- Tous les routers
+"""
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
-from routes.equipements import router as equipements_router
-from routes.interfaces import router as interfaces_router
-from routes.topologies import router as topologies_router
-from routes.topologie_equipements import router as topologie_equipements_router
-from routes.connexions import router as connexions_router
-from routes.auth import router as auth_router
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
-from databases import Base, engine
 from core.config import settings
+from core.limiter import limiter
+from databases import Base, engine
 
 # IMPORTANT:
 # Import models before create_all().
 # This registers all model classes with Base.metadata.
 import models
 
+# Import des routers
+from routes.equipements import router as equipements_router
+from routes.interfaces import router as interfaces_router
+from routes.topologies import router as topologies_router
+from routes.topologie_equipements import router as topologie_equipements_router
+from routes.connexions import router as connexions_router
+from routes.auth import router as auth_router
+from routes.network_config import router as network_config_router
 
-# --------------------------------------------------
-# Logging
-# --------------------------------------------------
 
+def custom_rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "Rate limit exceeded. Please try again later."},
+    )
+
+
+# Configuration du logging
 logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL, logging.INFO),
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
@@ -76,9 +96,29 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Rate limiting middleware
+app.state.limiter = limiter
+app.add_exception_handler(
+    RateLimitExceeded, custom_rate_limit_exceeded_handler
+)
+app.add_middleware(SlowAPIMiddleware)
+
+# Middleware : temps de traitement
+@app.middleware("http")
+async def add_process_time_header(request: Request, call_next):
+    import time
+
+    start_time = time.time()
+    response = await call_next(request)
+    process_time = time.time() - start_time
+    response.headers["X-Temps-Traitement"] = f"{process_time:.3f}s"
+    return response
+
+# Inclure les routers
 app.include_router(auth_router)
 app.include_router(equipements_router)
 app.include_router(interfaces_router)
 app.include_router(topologies_router)
 app.include_router(topologie_equipements_router)
 app.include_router(connexions_router)
+app.include_router(network_config_router)

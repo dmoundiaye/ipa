@@ -49,6 +49,12 @@ class Topologie(Base):
         unique=True
     )
 
+    # ID du nœud GNS3 pour la topologie (si applicable)
+    gns3_node_id = Column(
+        String(100),
+        nullable=True
+    )
+
     date_creation = Column(
         DateTime,
         default=datetime.utcnow
@@ -58,6 +64,12 @@ class Topologie(Base):
         DateTime,
         default=datetime.utcnow,
         onupdate=datetime.utcnow
+    )
+
+    # Flag de synchronisation avec GNS3
+    synced_with_gns3 = Column(
+        Boolean,
+        default=False
     )
 
     # Une topologie possède plusieurs équipements
@@ -130,6 +142,25 @@ class Equipement(Base):
     topologie = relationship(
         "Topologie",
         back_populates="equipements"
+    )
+
+    # --------------------------------------------------------
+    # Association GNS3
+    # --------------------------------------------------------
+
+    gns3_node_id = Column(
+        String(100),
+        nullable=True
+    )
+
+    gns3_template_id = Column(
+        String(100),
+        nullable=True
+    )
+
+    synced_with_gns3 = Column(
+        Boolean,
+        default=False
     )
 
     # --------------------------------------------------------

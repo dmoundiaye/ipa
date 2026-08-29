@@ -63,6 +63,12 @@ class EquipementResponse(BaseModel):
     type_equipement: str
     actif: bool
 
+    # Champs GNS3 (optionnels)
+    gns3_node_id: str | None = None
+    gns3_template_id: str | None = None
+    synced_with_gns3: bool = False
+    topologie_id: int | None = None
+
     model_config = {
         "from_attributes": True
     }
@@ -121,6 +127,10 @@ class TopologieResponse(BaseModel):
 
     gns3_project_id: str | None
 
+    gns3_node_id: str | None = None
+
+    synced_with_gns3: bool = False
+
     model_config = {
         "from_attributes": True
     }
@@ -131,73 +141,41 @@ class TopologieResponse(BaseModel):
 # ============================================================
 
 class ConnexionCreate(BaseModel):
+    topologie_id: int = Field(gt=0)
 
-    source_equipement_id: int = Field(
-        gt=0
-    )
+    source_equipement_id: int = Field(gt=0)
+    source_interface_id: int = Field(gt=0)
 
-    destination_equipement_id: int = Field(
-        gt=0
-    )
+    destination_equipement_id: int = Field(gt=0)
+    destination_interface_id: int = Field(gt=0)
 
-    source_adapter: int = Field(
-        default=0,
-        ge=0
-    )
 
-    source_port: int = Field(
-        default=0,
-        ge=0
-    )
+class ConnexionUpdate(BaseModel):
+    source_equipement_id: int | None = Field(default=None, gt=0)
+    source_interface_id: int | None = Field(default=None, gt=0)
 
-    destination_adapter: int = Field(
-        default=0,
-        ge=0
-    )
+    destination_equipement_id: int | None = Field(default=None, gt=0)
+    destination_interface_id: int | None = Field(default=None, gt=0)
 
-    destination_port: int = Field(
-        default=0,
-        ge=0
-    )
-
-    @model_validator(mode="after")
-    def verifier_equipements(self):
-
-        if (
-            self.source_equipement_id
-            == self.destination_equipement_id
-        ):
-            raise ValueError(
-                "Un équipement ne peut pas "
-                "être connecté à lui-même"
-            )
-
-        return self
+    gns3_link_id: str | None = None
 
 
 class ConnexionResponse(BaseModel):
-
     id: int
-
     topologie_id: int
 
     source_equipement_id: int
+    source_interface_id: int
 
     destination_equipement_id: int
-
-    source_adapter: int
-
-    source_port: int
-
-    destination_adapter: int
-
-    destination_port: int
+    destination_interface_id: int
 
     gns3_link_id: str | None
 
     model_config = {
         "from_attributes": True
     }
+
 
 # ============================================================
 # INTERFACES
@@ -242,88 +220,6 @@ class InterfaceResponse(BaseModel):
     statut: str | None
     vlan: int | None
     equipement_id: int
-
-    model_config = {
-        "from_attributes": True
-    }
-
-class ConnexionCreate(BaseModel):
-    topologie_id: int
-    source_equipement_id: int
-    destination_equipement_id: int
-
-    source_adapter: int = Field(default=0, ge=0)
-    source_port: int = Field(default=0, ge=0)
-
-    destination_adapter: int = Field(default=0, ge=0)
-    destination_port: int = Field(default=0, ge=0)
-
-    gns3_link_id: str | None = None
-
-
-class ConnexionUpdate(BaseModel):
-    source_equipement_id: int | None = None
-    destination_equipement_id: int | None = None
-
-    source_adapter: int | None = Field(default=None, ge=0)
-    source_port: int | None = Field(default=None, ge=0)
-
-    destination_adapter: int | None = Field(default=None, ge=0)
-    destination_port: int | None = Field(default=None, ge=0)
-
-    gns3_link_id: str | None = None
-
-
-class ConnexionResponse(BaseModel):
-    id: int
-    topologie_id: int
-
-    source_equipement_id: int
-    destination_equipement_id: int
-
-    source_adapter: int
-    source_port: int
-
-    destination_adapter: int
-    destination_port: int
-
-    gns3_link_id: str | None
-
-    model_config = {
-        "from_attributes": True
-    }
-    
-class ConnexionCreate(BaseModel):
-    topologie_id: int = Field(gt=0)
-
-    source_equipement_id: int = Field(gt=0)
-    source_interface_id: int = Field(gt=0)
-
-    destination_equipement_id: int = Field(gt=0)
-    destination_interface_id: int = Field(gt=0)
-
-
-class ConnexionUpdate(BaseModel):
-    source_equipement_id: int | None = Field(default=None, gt=0)
-    source_interface_id: int | None = Field(default=None, gt=0)
-
-    destination_equipement_id: int | None = Field(default=None, gt=0)
-    destination_interface_id: int | None = Field(default=None, gt=0)
-
-    gns3_link_id: str | None = None
-
-
-class ConnexionResponse(BaseModel):
-    id: int
-    topologie_id: int
-
-    source_equipement_id: int
-    source_interface_id: int
-
-    destination_equipement_id: int
-    destination_interface_id: int
-
-    gns3_link_id: str | None
 
     model_config = {
         "from_attributes": True

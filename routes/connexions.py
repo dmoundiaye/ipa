@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from core.security import get_current_user, require_role
 from databases import get_db
-from models import Connexion, Equipement, Interface, Topologie
+from models import Connexion, Equipement, Interface, Topologie, Utilisateur
 from schemas import (
     ConnexionCreate,
     ConnexionUpdate,
@@ -27,7 +28,8 @@ router = APIRouter(
 )
 def create_connexion(
     data: ConnexionCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Utilisateur = Depends(require_role("admin", "operator")),
 ):
 
     # Vérifier la topologie
@@ -158,7 +160,8 @@ def create_connexion(
     response_model=list[ConnexionResponse]
 )
 def get_connexions(
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Utilisateur = Depends(get_current_user),
 ):
 
     return db.query(Connexion).all()
@@ -174,7 +177,8 @@ def get_connexions(
 )
 def get_connexion(
     connexion_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Utilisateur = Depends(get_current_user),
 ):
 
     connexion = (
@@ -203,7 +207,8 @@ def get_connexion(
 def update_connexion(
     connexion_id: int,
     data: ConnexionUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Utilisateur = Depends(require_role("admin", "operator")),
 ):
 
     connexion = (
@@ -241,7 +246,8 @@ def update_connexion(
 )
 def delete_connexion(
     connexion_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Utilisateur = Depends(require_role("admin")),
 ):
 
     connexion = (

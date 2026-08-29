@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from core.security import get_current_user, require_role
 from databases import get_db
-from models import Interface, Equipement
+from models import Interface, Equipement, Utilisateur
 
 from schemas import (
     InterfaceCreate,
@@ -28,7 +29,8 @@ router = APIRouter(
 )
 def create_interface(
     interface: InterfaceCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Utilisateur = Depends(require_role("admin", "operator")),
 ):
 
     # Vérifier que l'équipement existe
@@ -69,7 +71,8 @@ def create_interface(
     response_model=list[InterfaceResponse]
 )
 def get_interfaces(
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Utilisateur = Depends(get_current_user),
 ):
 
     return db.query(Interface).all()
@@ -85,7 +88,8 @@ def get_interfaces(
 )
 def get_interface(
     interface_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Utilisateur = Depends(get_current_user),
 ):
 
     interface = (
@@ -116,7 +120,8 @@ def get_interface(
 def update_interface(
     interface_id: int,
     data: InterfaceUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Utilisateur = Depends(require_role("admin", "operator")),
 ):
 
     interface = (
@@ -156,7 +161,8 @@ def update_interface(
 )
 def delete_interface(
     interface_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Utilisateur = Depends(require_role("admin")),
 ):
 
     interface = (

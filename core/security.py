@@ -6,14 +6,14 @@ Contient :
 - La création et vérification des tokens JWT (via python-jose)
 - Les dépendances FastAPI pour l'authentification et l'autorisation
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from sqlalchemy.orm import Session
 
 from core.config import settings
@@ -74,9 +74,9 @@ def create_access_token(
     to_encode = data.copy()
 
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(
+        expire = datetime.now(timezone.utc) + timedelta(
             minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
         )
 
@@ -260,16 +260,31 @@ class UtilisateurCreate(BaseModel):
     nom_utilisateur: str = Field(
         min_length=3,
         max_length=100,
-        example="jdupont"
+        json_schema_extra={"example": "jdupont"}
     )
     mot_de_passe: str = Field(
         min_length=8,
-        example="MonMotDePasseSecret123!"
+        json_schema_extra={"example": "MonMotDePasseSecret123!"}
     )
     role: str = Field(
         default="lecteur",
-        example="admin"
+        json_schema_extra={"example": "admin"}
     )
+
+
+class UtilisateurUpdate(BaseModel):
+    """Schéma pour la modification partielle d'un utilisateur (PATCH)."""
+    nom_utilisateur: str | None = Field(
+        default=None,
+        min_length=3,
+        max_length=100,
+    )
+    mot_de_passe: str | None = Field(
+        default=None,
+        min_length=8,
+    )
+    role: str | None = None
+    actif: bool | None = None
 
 
 class UtilisateurResponse(BaseModel):
@@ -279,5 +294,4 @@ class UtilisateurResponse(BaseModel):
     actif: bool
     date_creation: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

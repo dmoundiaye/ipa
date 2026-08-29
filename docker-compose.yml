@@ -1,0 +1,80 @@
+version: '3.8'
+
+services:
+  # Service MySQL pour la base de données
+  mysql:
+    image: mysql:8.0
+    container_name: devnet-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: inventory
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_USER: devnet
+      MYSQL_PASSWORD: devnetpassword
+    volumes:
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Service GNS3 (si vous avez l'image GNS3, sinon commentez cette section)
+  # gns3:
+  #   image: gns3/gns3-server:latest
+  #   container_name: devnet-gns3
+  #   restart: unless-stopped
+  #   environment:
+  #     - GNS3_USERNAME=${GNS3_USERNAME}
+  #     - GNS3_PASSWORD=${GNS3_PASSWORD}
+  #   volumes:
+  #     - gns3_data:/opt/gns3
+  #   ports:
+  #     - "3080:3080"
+  #   depends_on:
+  #     mysql:
+  #       condition: service_healthy
+
+  # API DevNet
+  api:
+    build: .
+    container_name: devnet-api
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # Surcharge des variables si besoin
+      DATABASE_URL: mysql+pymysql://devnet:devnetpassword@mysql:3306/inventory
+      # GNS3_URL: http://gns3:3080  # Décommenter si GNS3 est activé
+    volumes:
+      - .:/app:cached  # Pour le développement en temps réel
+    ports:
+      - "8000:8000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      # gns3:
+      #   condition: service_healthy
+    command: >
+      sh -c "
+      # Attendre que MySQL soit prêt
+      for i in \`seq 1 30\`; do
+        nc -z mysql 3306 && echo 'MySQL is ready' && break
+        echo 'Waiting for MySQL...'
+        sleep 1
+      done
+      # Attendre que GNS3 soit prêt (si activé)
+      # for i in \`seq 1 30\`; do
+      #   nc -z gns3 3080 && echo 'GNS3 is ready' && break
+      #   echo 'Waiting for GNS3...'
+      #   sleep 1
+      # done
+      # Lancer l'application
+      python -m uvicorn entrypoint:app --host 0.0.0.0 --port 8000
+      "
+
+volumes:
+  mysql_data:
+  # gns3_data:

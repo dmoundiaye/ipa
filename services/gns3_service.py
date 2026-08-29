@@ -1,11 +1,44 @@
+import logging
 import os
 from typing import Any
 
 import httpx
 from dotenv import load_dotenv
+from tenacity import (
+    before_sleep_log,
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
+from core.config import settings
 
 load_dotenv()
+
+_logger = logging.getLogger("inventory-app")
+
+
+# Exceptions sur lesquelles on retente (réseau / timeout / serveur)
+_RETRYABLE = (
+    httpx.TimeoutException,
+    httpx.NetworkError,
+    httpx.HTTPStatusError,
+)
+
+
+def _retry_call(func):
+    """Décorateur de retry avec backoff exponentiel pour erreurs transitoires."""
+    return retry(
+        retry=retry_if_exception_type(_RETRYABLE),
+        stop=stop_after_attempt(settings.RETRY_MAX_ATTEMPTS),
+        wait=wait_exponential(
+            multiplier=settings.RETRY_MIN_WAIT,
+            max=settings.RETRY_MAX_WAIT,
+        ),
+        before_sleep=before_sleep_log(_logger, logging.WARNING),
+        reraise=True,
+    )(func)
 
 
 class GNS3Service:
@@ -40,6 +73,7 @@ class GNS3Service:
     # TEST CONNEXION GNS3
     # ==========================================================
 
+    @_retry_call
     def get_version(self) -> dict[str, Any]:
 
         response = httpx.get(
@@ -56,6 +90,7 @@ class GNS3Service:
     # TEMPLATES
     # ==========================================================
 
+    @_retry_call
     def get_templates(self) -> list[dict[str, Any]]:
 
         response = httpx.get(
@@ -72,6 +107,7 @@ class GNS3Service:
     # PROJETS
     # ==========================================================
 
+    @_retry_call
     def get_projects(self) -> list[dict[str, Any]]:
 
         response = httpx.get(
@@ -88,6 +124,7 @@ class GNS3Service:
     # NODES D'UN PROJET
     # ==========================================================
 
+    @_retry_call
     def get_nodes(
         self,
         project_id: str
@@ -103,11 +140,12 @@ class GNS3Service:
         response.raise_for_status()
 
         return response.json()
-    
+
     # ==========================================================
     # CREER UN PROJET
     # ==========================================================
 
+    @_retry_call
     def create_project(
         self,
         name: str
@@ -130,6 +168,7 @@ class GNS3Service:
     # CREER UN NODE
     # ==========================================================
 
+    @_retry_call
     def create_node(
         self,
         project_id: str,
@@ -159,6 +198,7 @@ class GNS3Service:
     # CREER UN LIEN
     # ==========================================================
 
+    @_retry_call
     def create_link(
         self,
         project_id: str,
@@ -201,6 +241,7 @@ class GNS3Service:
     # DEMARRER UN NODE
     # ==========================================================
 
+    @_retry_call
     def start_node(
         self,
         project_id: str,
@@ -217,10 +258,12 @@ class GNS3Service:
         response.raise_for_status()
 
         return response.json()
-        # ==========================================================
+
+    # ==========================================================
     # DEMARRER UN PROJET
     # ==========================================================
 
+    @_retry_call
     def start_all_nodes(
         self,
         project_id: str
